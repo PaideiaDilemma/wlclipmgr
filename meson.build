@@ -7,10 +7,10 @@ project('wlclipmgr', 'cpp', 'c',
       ]
   )
 
+subdir('thirdParty') # declares xdgmime
+
 cc = meson.get_compiler('c')
 lprocps = cc.find_library('procps')
-
-subdir('thirdParty')
 
 source_files = [
   'main.cpp',
@@ -22,6 +22,6 @@ wlclipmgr = executable(
   meson.project_name(),
   source_files,
   link_with : [xdgmime],
-  dependencies: [lprocps],
+  dependencies: [lprocps, dependency('magic_enum', method: 'cmake')],
   native: true
   )

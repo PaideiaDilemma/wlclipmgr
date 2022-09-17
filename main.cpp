@@ -32,8 +32,9 @@ std::string getDefaultPage()
 struct Args : public argparse::Args
 {
     Command &command = arg("Command for wlclipmgr");
-    std::string &page = kwarg("p,page", "clipboard page").set_default("none");
+    std::string &page = kwarg("p,page", "clipboard page").set_default("");
     size_t &index = kwarg("i,index", "page index to restore").set_default(0);
+    size_t &lines = kwarg("l,lines", "how many lines to list").set_default(10);
     std::string &block = kwarg("b,block",
         "Block saving the cliboard if a certain process is running."
         "Example: pass:10,scary_app | This will not save the clipboard"
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
     const auto args = argparse::parse<Args>(argc, argv);
 
     std::string page;
-    if (args.page == "none")
+    if (args.page.empty())
         page = getDefaultPage();
 
     else page = args.page;
@@ -83,7 +84,7 @@ int main(int argc, char *argv[])
             break;
         case Command::list:
             clipboard.readPage();
-            clipboard.listEntries(10);
+            clipboard.listEntries(args.lines);
             break;
         case Command::restore:
             clipboard.readPage();
