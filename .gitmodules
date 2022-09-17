@@ -1,0 +1,6 @@
+[submodule "thirdParty/argparse"]
+	path = thirdParty/argparse
+	url = https://github.com/morrisfranken/argparse
+[submodule "thirdParty/xdgmime"]
+	path = thirdParty/xdgmime
+	url = https://gitlab.freedesktop.org/xdg/xdgmime.git
