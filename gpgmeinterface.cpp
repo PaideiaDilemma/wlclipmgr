@@ -5,7 +5,8 @@
 
 #include "gpgmeinterface.hpp"
 
-GpgMEInterface::GpgMEInterface()
+GpgMEInterface::GpgMEInterface(const std::string &gpgKeyUserName) :
+    gpgKeyUserName{gpgKeyUserName}
 {
     GpgME::initializeLibrary();
     GpgME::EngineInfo info = GpgME::engineInfo(GpgME::Protocol::OpenPGP);
@@ -67,7 +68,7 @@ GpgMEInterface::decrypt(const char *buf, const size_t size) const
 }
 
 void
-GpgMEInterface::getKey(const std::string &userName)
+GpgMEInterface::getKey()
 {
     GpgME::Error err;
     context->setKeyListMode(GpgME::KeyListMode::WithSecret);
@@ -86,34 +87,33 @@ GpgMEInterface::getKey(const std::string &userName)
         throwIfError(err, "Failed to get the next gpg key!");
         if (currKey.canEncrypt() && currKey.hasSecret())
         {
-            if (userName.empty())
+            if (gpgKeyUserName.empty())
             {
                 key = currKey;
                 break;
             }
             else
             {
-                if (findUserNameInIDs(key.userIDs(), userName))
+                if (findUserNameInKey(currKey, gpgKeyUserName))
                 {
                     key = currKey;
                     break;
                 }
             }
         }
-
     } while (!currKey.isNull());
 
     if (key.isNull())
     {
-        std::cerr << "Did not find a valid key!" << std::endl;
+        throw std::runtime_error("Did not find a valid key!");
     }
-    std::cout << key.userID(0).name() << std::endl;
 }
 
 bool
-GpgMEInterface::findUserNameInIDs(const std::vector<GpgME::UserID> &userIDs,
+GpgMEInterface::findUserNameInKey(const GpgME::Key &currKey,
         const std::string &userName) const noexcept
 {
+    std::vector<GpgME::UserID> userIDs = currKey.userIDs();
     return (std::find_if(userIDs.begin(), userIDs.end(),
         [&](const GpgME::UserID &uid)
         {
@@ -123,14 +123,12 @@ GpgMEInterface::findUserNameInIDs(const std::vector<GpgME::UserID> &userIDs,
 }
 
 void
-GpgMEInterface::throwIfError(const GpgME::Error &err, const std::string &msg) const
+GpgMEInterface::throwIfError(const GpgME::Error &err,
+        const std::string &msg) const
 {
     if (err)
     {
-        std::cerr << msg << std::endl;
         std::cerr << err << std::endl;
-        throw new std::runtime_error(msg);
+        throw std::runtime_error(msg);
     }
 }
-
-

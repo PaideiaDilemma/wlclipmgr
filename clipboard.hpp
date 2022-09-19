@@ -47,9 +47,12 @@ class Clipboard
     const fs::path tmpFilePath;
     std::deque<ClipboardEntry> entries;
 
+    const std::string gpgUserName;
+
     public:
-    Clipboard(const fs::path pagePath, const fs::path tmpFilePath) :
-        pagePath{pagePath}, tmpFilePath{tmpFilePath}
+    Clipboard(const fs::path &pagePath, const fs::path &tmpFilePath,
+            const std::string &gpgUserName) :
+        pagePath{pagePath}, tmpFilePath{tmpFilePath}, gpgUserName{gpgUserName}
     {
     }
 

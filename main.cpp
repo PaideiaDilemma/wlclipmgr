@@ -19,7 +19,6 @@ getDefaultPage()
     ss << std::setfill('0') << std::setw(2) << ltm->tm_mday;
     ss << std::setfill('0') << std::setw(2) << ltm->tm_mon;
     ss << std::string(year.end()-2, year.end());
-    std::cout << std::string(year.end()-2, year.end()) << std::endl;
     return ss.str();
 }
 
@@ -39,12 +38,21 @@ struct Args : public argparse::Args
     size_t &index = kwarg("i,index", "page index to restore").set_default(0);
     size_t &lines = kwarg("l,lines", "how many lines to list").set_default(10);
     std::string &block = kwarg("b,block",
-        "Block saving the cliboard if a certain process is running."
-        "Example: pass:10,scary_app | This will not save the clipboard"
-        "if there is a process newer than 10 seconds and its cmdline"
-        "has \"pass\" in it,"
-        "or if there is a process that has \"scary_app\" in its cmdline")
+        "Block saving the cliboard if a certain process is running.")
         .set_default("");
+        /*
+        Example: pass:10,scary_app | This will not save the clipboard
+        if there is a process newer than 10 seconds and its cmdline
+        has "pass" in it,
+        or if there is a process that has \"scary_app\" in its cmdline
+        */
+    std::string &gpgUserName = kwarg("u,gpg-user",
+        "User name of the gpg key to use, when de-/encypting.")
+        .set_default("");
+        /*
+           if not provided, the first key, that can encrypt and has a
+           secret will be used. (tip: use gpg(2) --list-keys))
+        */
 };
 
 void
@@ -96,6 +104,7 @@ main(int argc, char *argv[])
             std::cerr << "Fatal: env $HOME not found!" << std::endl;
             return -1;
         }
+        // lets just assume this exists
         cacheDir = fs::path(std::string(xdgVar) + "/.cache/");
     }
     else
@@ -105,13 +114,17 @@ main(int argc, char *argv[])
     if (!fs::exists(cacheDir))
         fs::create_directory(cacheDir);
 
-    Clipboard clipboard{cacheDir / page, cacheDir / "tmpfile"};
+    Clipboard clipboard{
+        cacheDir / page,
+        cacheDir / "tmpfile",
+        args.gpgUserName
+    };
 
     try
     {
         doCommand(args, clipboard);
     }
-    catch (const std::exception &err)
+    catch (const std::runtime_error &err)
     {
         std::cerr << err.what() << std::endl;
         return -1;

@@ -9,13 +9,15 @@
 
 class GpgMEInterface
 {
-    void getKey(const std::string &userName = "");
-    bool findUserNameInIDs(const std::vector<GpgME::UserID> &userIDs,
+    const std::string gpgKeyUserName;
+
+    void getKey();
+    bool findUserNameInKey(const GpgME::Key &currKey,
             const std::string &userName) const noexcept;
     void throwIfError(const GpgME::Error &err, const std::string &msg) const;
 
     public:
-    GpgMEInterface();
+    GpgMEInterface(const std::string &gpgKeyUserName);
 
     std::vector<char> encrypt(const char *buf, const size_t size) const;
     std::vector<char> decrypt(const char *buf, const size_t size) const;

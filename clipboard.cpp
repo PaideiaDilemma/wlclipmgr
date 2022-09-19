@@ -136,7 +136,7 @@ Clipboard::encryptPage() const noexcept
     msgpack::sbuffer sbuf;
     msgpack::pack(sbuf, entries);
 
-    const GpgMEInterface gpgInterface{};
+    const GpgMEInterface gpgInterface{gpgUserName};
     std::vector<char> res = gpgInterface.encrypt(sbuf.data(), sbuf.size());
 
     std::ofstream outFile{pagePath.string()+".gpg"};
@@ -147,8 +147,9 @@ Clipboard::encryptPage() const noexcept
 void
 Clipboard::decryptPage(const std::vector<char> &data, bool write) noexcept
 {
-    const GpgMEInterface gpgInterface{};
-    std::vector res = gpgInterface.decrypt(data.data(), data.size());
+    std::cout << data.size() << std::endl;
+    const GpgMEInterface gpgInterface{gpgUserName};
+    std::vector<char> res = gpgInterface.decrypt(data.data(), data.size());
 
     unpackEntries(res);
     if (write)
