@@ -1,11 +1,10 @@
-#ifndef __Clipboard_hpp
-#define __Clipboard_hpp
+#ifndef __WLCIPMGR_CLIPBOARD_HPP
+#define __WLCIPMGR_CLIPBOARD_HPP
 
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <deque>
-
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -25,21 +24,21 @@ class ClipboardEntry
     ClipboardEntry(const std::vector<char> &input, const size_t inputSize) :
         buffer{input}, size{inputSize}
     {
-        if (inputSize > 0x10) {} // Mime
     }
 
     friend std::ostream &operator<<(std::ostream &os,
             const ClipboardEntry &obj);
     friend std::ofstream &operator<<(std::ofstream &os,
             const ClipboardEntry &obj);
-    friend bool operator==(ClipboardEntry &a,
-            const ClipboardEntry &b);
     friend class Clipboard;
 
     public:
-    MSGPACK_DEFINE(buffer, size, mime)
     ClipboardEntry() = default;
+
+    bool operator==(const ClipboardEntry &other) const noexcept;
     const ClipboardEntry &setMimeType();
+
+    MSGPACK_DEFINE(buffer, size, mime)
 };
 
 class Clipboard
@@ -60,9 +59,13 @@ class Clipboard
     void listEntries(const size_t num);
     void restore(const size_t index);
 
+    void encryptPage() const noexcept;
+    void decryptPage(const std::vector<char> &data, bool write = true) noexcept;
+
+    void unpackEntries(const std::vector<char> &data);
     void writePage() const;
     void readPage();
 };
 
 
-#endif // __Clipboard_hpp
+#endif // __WLCIPMGR_CLIPBOARD_HPP

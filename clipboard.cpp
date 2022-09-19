@@ -1,22 +1,35 @@
 #include <istream>
+#include <unordered_map>
+
+#include <cctype> // used for isprint()
 
 #include "clipboard.hpp"
 #include "procblock.hpp"
+#include "gpgmeinterface.hpp"
+
+#include <gpgme++/context.h>
+#include <gpgme++/data.h>
+#include <gpgme++/key.h>
+#include <gpgme++/keylistresult.h>
+#include <gpgme++/engineinfo.h>
 
 extern "C" {
 #include "thirdParty/xdgmime/src/xdgmime.h"
 }
 
-void Clipboard::addEntry(const std::string &block)
+void
+Clipboard::addEntry(const std::string &block)
 {
     if (!block.empty() && clipboardProcBlock(block))
         return;
-    //char buffer[MAX_CLIPBOARD_ENTRY_SIZE];
+
     freopen(NULL, "rb", stdin);
     std::vector<char> buffer;
     try
     {
-        buffer = std::vector<char>{std::istreambuf_iterator<char>(std::cin), {}};
+        buffer = std::vector<char>{
+            std::istreambuf_iterator<char>{std::cin}, {}
+        };
     } catch (const std::ios::failure &err) {
         std::cerr << "Failed to read clipboard content!" << std::endl;
         std::cerr << err.what() << std::endl;
@@ -38,7 +51,8 @@ void Clipboard::addEntry(const std::string &block)
         entries.push_front(newEntry);
 }
 
-void Clipboard::listEntries(const size_t num)
+void
+Clipboard::listEntries(const size_t num)
 {
     for (size_t i = 0; i < num && i < entries.size(); i++)
     {
@@ -47,7 +61,8 @@ void Clipboard::listEntries(const size_t num)
     }
 }
 
-void Clipboard::restore(const size_t index)
+void
+Clipboard::restore(const size_t index)
 {
     if (index == 0 || index >= entries.size())
     {
@@ -77,32 +92,74 @@ void Clipboard::restore(const size_t index)
     }
     else
     {
-        const std::string prefix{"wl-copy \""};
-        const size_t prefixSize = prefix.size();
-        char *command = (char *)malloc(prefixSize + entry.size + 2);
+        const std::string prefix = "wl-copy \"";
+        std::vector<char> command(prefix.begin(), prefix.end());
 
-        if (command == NULL) throw new std::runtime_error("malloc failed.");
+        command.insert(command.end(), entry.buffer.begin(),
+                entry.buffer.end());
 
-        std::strncpy(command, prefix.c_str(), prefixSize);
-        for (size_t i = 0; i < entry.size; i++)
-        {
-            command[prefixSize + i] = entry.buffer[i];
-        }
-        command[prefixSize + entry.size] = '\"';
-        command[prefixSize + entry.size + 1] = '\0';
+        command.push_back('\"');
+        command.push_back('\0');
 
-        std::cout << command << std::endl;
-        if (system(command) != 0)
+        if (std::system(command.data()) != 0)
         {
             std::cerr << "Copy command failed:" << std::endl;
-            std::cerr << "\t" << command << std::endl;
+            std::cerr << '\t' << command.data() << std::endl;
         }
     }
     // Delete restored element
     entries.erase(std::next(entries.begin(), index));
 }
 
-void Clipboard::writePage() const
+void
+Clipboard::unpackEntries(const std::vector<char> &data)
+{
+    if (data.empty())
+        return;
+    // TODO: Errorcheck
+    msgpack::object_handle oh = msgpack::unpack(data.data(), data.size());
+    msgpack::object obj = oh.get();
+
+    obj.convert(entries);
+};
+
+void
+Clipboard::encryptPage() const noexcept
+{
+    if (entries.empty())
+    {
+        std::cout << "Nothing to encrypt!" << std::endl;
+        return;
+    }
+
+    // Pack clipboard entries
+    msgpack::sbuffer sbuf;
+    msgpack::pack(sbuf, entries);
+
+    const GpgMEInterface gpgInterface{};
+    std::vector<char> res = gpgInterface.encrypt(sbuf.data(), sbuf.size());
+
+    std::ofstream outFile{pagePath.string()+".gpg"};
+    outFile.write(res.data(), res.size());
+    fs::remove(pagePath);
+}
+
+void
+Clipboard::decryptPage(const std::vector<char> &data, bool write) noexcept
+{
+    const GpgMEInterface gpgInterface{};
+    std::vector res = gpgInterface.decrypt(data.data(), data.size());
+
+    unpackEntries(res);
+    if (write)
+    {
+        writePage();
+        fs::remove(pagePath.string() + ".gpg");
+    }
+}
+
+void
+Clipboard::writePage() const
 {
     // Pack clipboard entries
     msgpack::sbuffer sbuf;
@@ -113,13 +170,22 @@ void Clipboard::writePage() const
     pageFile.close();
 }
 
-void Clipboard::readPage()
+void
+Clipboard::readPage()
 {
-    std::ifstream pageFile{pagePath, std::ios::in | std::ios::binary};
+    fs::path pageFilePath = pagePath;
+    bool isEncrypted = false;
+    if (!fs::exists(pagePath) && fs::exists(pagePath.string() + ".gpg"))
+    {
+        pageFilePath = fs::path{pagePath.string() + ".gpg"};
+        isEncrypted = true;
+    }
+
+    std::ifstream pageFile{pageFilePath, std::ios::in | std::ios::binary};
     size_t pageSize;
     try
     {
-        pageSize = fs::file_size(pagePath);
+        pageSize = fs::file_size(pageFilePath);
     } catch (const fs::filesystem_error &err)
     {
         return;
@@ -128,57 +194,66 @@ void Clipboard::readPage()
         return;
 
     // Unpack clipboard entries
-    char *readBuff = (char *)malloc(pageSize);
-    if (readBuff == NULL) throw new std::runtime_error("malloc failed.");
-    pageFile.read((char *)readBuff, pageSize);
+    std::vector<char> readBuff(pageSize);
+    pageFile.read(readBuff.data(), pageSize);
 
-    msgpack::object_handle oh = msgpack::unpack(readBuff, pageSize);
-    msgpack::object obj = oh.get();
-
-    obj.convert(entries);
-    free(readBuff);
+    if (isEncrypted)
+        decryptPage(readBuff);
+    else
+        unpackEntries(readBuff);
 }
 
-const ClipboardEntry &ClipboardEntry::setMimeType()
+const ClipboardEntry &
+ClipboardEntry::setMimeType()
 {
-    char *cBuffer = (char *)malloc(size);
-    if (cBuffer == NULL) throw new std::runtime_error("malloc failed.");
-    for (size_t i = 0; i < size; i++)
-        cBuffer[i] = buffer[i];
-
     int res_prio;
-    // TODO: can we limit the size of big bufferes, while getting the same
-    // mime type ?
-    const char *res = xdg_mime_get_mime_type_for_data(cBuffer, size, &res_prio);
+    const char *res = xdg_mime_get_mime_type_for_data(buffer.data(),
+            size, &res_prio);
 
     mime = std::string{res};
-    free(cBuffer);
     return *this;
 }
 
-std::ostream &operator<<(std::ostream &os,
-        const ClipboardEntry &obj)
+bool
+ClipboardEntry::operator==(const ClipboardEntry &other) const noexcept
 {
+    if (size != other.size)
+        return false;
+    if (buffer != other.buffer)
+        return false;
+    return true;
+}
+
+std::ostream &
+operator<<(std::ostream &os, const ClipboardEntry &obj)
+{
+    static const std::unordered_map<char,std::string> substitute
+    {
+        {'\n', "\\n"}, {'\r', "\\r"}, {'\r', "\\r"}
+    };
+
     if (!obj.mime.empty() && obj.mime != "text/plain")
     {
-        os << "mime: [" << obj.mime << "]" << std::endl;
-        os << "size: " << obj.size;
+        os << "mime: [" << obj.mime << "] size: " << obj.size;
         return os;
     }
 
     const size_t outSize = (obj.size < OUTPUT_LINE_TRUNCATE_AFTER) ?
         obj.size : OUTPUT_LINE_TRUNCATE_AFTER;
 
-    char *outBuffer = (char *)malloc(outSize + 1);
-    if (outBuffer == NULL) throw new std::runtime_error("malloc failed.");
+    std::vector<char> outBuffer(obj.buffer.begin(),
+            obj.buffer.begin() + outSize);
 
-    for (size_t i = 0; i < outSize; i++)
-
-        outBuffer[i] = obj.buffer[i];
-    outBuffer[outSize] = '\0';
-
-    os << outBuffer;
-    free(outBuffer);
+    for (const char c : outBuffer)
+    {
+        auto it = substitute.find(c);
+        if (it != substitute.end())
+            os << it->second;
+        else if (std::isprint(c))
+            os << c;
+        else
+            os << "█";
+    }
 
     if (outSize == OUTPUT_LINE_TRUNCATE_AFTER)
         os << "... (" << obj.size - outSize << " more chars)";
@@ -186,29 +261,9 @@ std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-std::ofstream &operator<<(std::ofstream &ofs,
-        const ClipboardEntry &obj)
+std::ofstream &
+operator<<(std::ofstream &ofs, const ClipboardEntry &obj)
 {
-    char *outBuffer = (char *)malloc(obj.size);
-    if (outBuffer == NULL) throw new std::runtime_error("malloc failed.");
-    for (size_t i = 0; i < obj.size; i++)
-        outBuffer[i] = obj.buffer[i];
-
-    ofs.write(outBuffer, obj.size);
-    free(outBuffer);
+    ofs.write(obj.buffer.data(), obj.buffer.size());
     return ofs;
 }
-
-bool operator==(ClipboardEntry &a,
-        const ClipboardEntry &b)
-{
-    if (a.size != b.size)
-        return false;
-    for (size_t i = 0; i < a.size; i++)
-    {
-        if (a.buffer[i] != b.buffer[i])
-            return false;
-    }
-    return true;
-}
-

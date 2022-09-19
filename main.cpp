@@ -7,6 +7,22 @@ namespace fs = std::filesystem;
 #include "thirdParty/argparse/include/argparse/argparse.hpp"
 
 
+std::string
+getDefaultPage()
+{
+    // Handle default page by setting it to date format clipddmmyy
+    time_t now = std::time(0);
+    tm *ltm = std::localtime(&now);
+    std::stringstream ss;
+    std::string year{std::to_string(ltm->tm_year)};
+    ss << "clip";
+    ss << std::setfill('0') << std::setw(2) << ltm->tm_mday;
+    ss << std::setfill('0') << std::setw(2) << ltm->tm_mon;
+    ss << std::string(year.end()-2, year.end());
+    std::cout << std::string(year.end()-2, year.end()) << std::endl;
+    return ss.str();
+}
+
 enum Command
 {
     save,
@@ -15,19 +31,6 @@ enum Command
     restore,
     encrypt
 };
-
-std::string getDefaultPage()
-{
-    // Handle default page by setting it to date format clipddmmyy
-    time_t now = std::time(0);
-    tm *ltm = std::localtime(&now);
-    std::stringstream ss;
-    ss << "clip";
-    ss << std::setfill('0') << std::setw(2) << ltm->tm_mday;
-    ss << std::setfill('0') << std::setw(2) << ltm->tm_mon;
-    ss << ltm->tm_year;
-    return ss.str();
-}
 
 struct Args : public argparse::Args
 {
@@ -44,7 +47,36 @@ struct Args : public argparse::Args
         .set_default("");
 };
 
-int main(int argc, char *argv[])
+void
+doCommand(const Args &args, Clipboard &clipboard)
+{
+    switch(args.command)
+    {
+        case Command::save:
+            clipboard.readPage();
+            clipboard.addEntry(args.block);
+            clipboard.writePage();
+            break;
+        case Command::list:
+            clipboard.readPage();
+            clipboard.listEntries(args.lines);
+            break;
+        case Command::restore:
+            clipboard.readPage();
+            clipboard.restore(args.index);
+            clipboard.writePage();
+            break;
+        case Command::watch:
+            break;
+        case Command::encrypt:
+            clipboard.readPage();
+            clipboard.encryptPage();
+            break;
+    }
+}
+
+int
+main(int argc, char *argv[])
 {
     const auto args = argparse::parse<Args>(argc, argv);
 
@@ -75,25 +107,14 @@ int main(int argc, char *argv[])
 
     Clipboard clipboard{cacheDir / page, cacheDir / "tmpfile"};
 
-    switch(args.command)
+    try
     {
-        case Command::save:
-            clipboard.readPage();
-            clipboard.addEntry(args.block);
-            clipboard.writePage();
-            break;
-        case Command::list:
-            clipboard.readPage();
-            clipboard.listEntries(args.lines);
-            break;
-        case Command::restore:
-            clipboard.readPage();
-            clipboard.restore(args.index);
-            clipboard.writePage();
-            break;
-        case Command::watch:
-            break;
-        case Command::encrypt:
-            break;
+        doCommand(args, clipboard);
     }
+    catch (const std::exception &err)
+    {
+        std::cerr << err.what() << std::endl;
+        return -1;
+    }
+    return 0;
 }

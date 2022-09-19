@@ -11,7 +11,8 @@
 
 #include "procblock.hpp"
 
-bool clipboardProcBlock(const std::string &blockString)
+bool
+clipboardProcBlock(const std::string &blockString)
 {
     size_t newerThanMax = 0;
     const auto block = parseBlockOpt(blockString, newerThanMax);
@@ -49,7 +50,8 @@ bool clipboardProcBlock(const std::string &blockString)
     return false;
 }
 
-std::vector<procInfo_m> parseBlockOpt(const std::string blockStr,
+std::vector<procInfo_m>
+parseBlockOpt(const std::string blockStr,
         size_t &newerThanMax)
 {
     std::vector<procInfo_m> res;
@@ -70,7 +72,8 @@ std::vector<procInfo_m> parseBlockOpt(const std::string blockStr,
     return res;
 }
 
-unsigned long long getUpTime(void)
+unsigned long long
+getUpTime(void)
 {
     std::string uptimeSecs;
     unsigned long long res;
@@ -97,7 +100,8 @@ unsigned long long getUpTime(void)
 
 //  ..include/proc/misc.h seems to not be present in archlinux
 //  this is the procps inplementation.
-long procps_hertz_get(void)
+long
+procps_hertz_get(void)
 {
     long hz;
 
@@ -112,7 +116,8 @@ long procps_hertz_get(void)
     return 100;
 }
 
-std::vector<std::string> stringSplit(std::string s, std::string delim)
+std::vector<std::string>
+stringSplit(std::string s, std::string delim)
 {
     size_t pos;
     std::vector<std::string> res;

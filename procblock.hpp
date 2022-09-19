@@ -1,3 +1,6 @@
+#ifndef __WLCLIPMGR_PROCBLOCK_HPP
+#define __WLCLIPMGR_PROCBLOCK_HPP
+
 #include <string>
 #include <vector>
 
@@ -30,4 +33,7 @@ std::vector<procInfo_m> parseBlockOpt(const std::string blockStr,
 unsigned long long getUpTime(void); // get /proc/uptime
 std::vector<std::string> stringSplit(std::string s, std::string delim);
 long procps_hertz_get(void); // get system hertz (ripped from procps)
+
+
+#endif //__WLCLIPMGR_PROCBLOCK_HPP
 

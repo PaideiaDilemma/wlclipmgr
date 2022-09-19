@@ -11,17 +11,29 @@ subdir('thirdParty') # declares xdgmime
 
 cc = meson.get_compiler('c')
 lprocps = cc.find_library('procps')
+cpp = meson.get_compiler('cpp')
+lgpgme = cpp.find_library('gpgmepp')
+lassuan = cpp.find_library('assuan')
+lgpg_error = cpp.find_library('gpg-error')
 
 source_files = [
   'main.cpp',
   'clipboard.cpp',
-  'procblock.cpp'
+  'procblock.cpp',
+  'gpgmeinterface.cpp'
   ]
 
 wlclipmgr = executable(
   meson.project_name(),
   source_files,
   link_with : [xdgmime],
-  dependencies: [lprocps, dependency('magic_enum', method: 'cmake')],
+  dependencies: [
+    lprocps,
+    lgpgme,
+    lassuan,
+    lgpg_error,
+    dependency('magic_enum'),
+    dependency('libassuan')
+    ],
   native: true
   )
