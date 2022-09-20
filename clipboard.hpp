@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 
 #include <msgpack.hpp>
 
-#define MAX_SIZE_CLIPBOARD_ENTRY 0x100000
+#define MAX_SIZE_CLIPBOARD_ENTRY 0x1000000
 #define MIN_SIZE_COPY_VIA_FILE 0x100
 #define MIN_SIZE_SET_MIME 0x1000
 #define OUTPUT_LINE_TRUNCATE_AFTER 0x20

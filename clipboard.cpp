@@ -47,7 +47,7 @@ Clipboard::addEntry(const std::string &block)
     if (buffSize > MIN_SIZE_SET_MIME)
         newEntry.setMimeType();
 
-    if (newEntry != entries[0])
+    if (entries.empty() || newEntry != entries[0])
         entries.push_front(newEntry);
 }
 
@@ -139,7 +139,11 @@ Clipboard::encryptPage() const noexcept
     const GpgMEInterface gpgInterface{gpgUserName};
     std::vector<char> res = gpgInterface.encrypt(sbuf.data(), sbuf.size());
 
-    std::ofstream outFile{pagePath.string()+".gpg"};
+    std::cout << res.size() << std::endl;
+    std::cout << pagePath.string()+".gpg" << std::endl;
+
+    std::ofstream outFile{pagePath.string()+".gpg",
+        std::ios::out | std::ios::binary};
     outFile.write(res.data(), res.size());
     fs::remove(pagePath);
 }
@@ -147,7 +151,6 @@ Clipboard::encryptPage() const noexcept
 void
 Clipboard::decryptPage(const std::vector<char> &data, bool write) noexcept
 {
-    std::cout << data.size() << std::endl;
     const GpgMEInterface gpgInterface{gpgUserName};
     std::vector<char> res = gpgInterface.decrypt(data.data(), data.size());
 
