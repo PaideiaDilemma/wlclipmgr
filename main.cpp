@@ -6,7 +6,6 @@ namespace fs = std::filesystem;
 #include "clipboard.hpp"
 #include "thirdParty/argparse/include/argparse/argparse.hpp"
 
-
 std::string
 getDefaultPage()
 {
@@ -24,11 +23,10 @@ getDefaultPage()
 
 enum Command
 {
-    save,
+    store,
     watch,
     list,
-    restore,
-    encrypt
+    restore
 };
 
 struct Args : public argparse::Args
@@ -40,45 +38,55 @@ struct Args : public argparse::Args
     std::string &block = kwarg("b,block",
         "Block saving the cliboard if a certain process is running.")
         .set_default("");
-        /*
+    /*
         Example: pass:10,scary_app | This will not save the clipboard
         if there is a process newer than 10 seconds and its cmdline
         has "pass" in it,
         or if there is a process that has \"scary_app\" in its cmdline
-        */
+    */
+    bool &notSecure = flag("no-encryption", "disable encryption with gpg");
     std::string &gpgUserName = kwarg("u,gpg-user",
         "User name of the gpg key to use, when de-/encypting.")
         .set_default("");
-        /*
-           if not provided, the first key, that can encrypt and has a
-           secret will be used. (tip: use gpg(2) --list-keys))
-        */
+    /*
+       if not provided, the first key, that can encrypt and has a
+       secret will be used. (to list your keys, use gpg(2) --list-keys))
+    */
 };
 
+void doWatch(const Args &args, const std::string &argv_0)
+{
+    std::string command = "wl-paste -w " + argv_0 + " store";
+    if (!args.page.empty())
+        command += " --page " + args.page;
+    if (!args.block.empty())
+        command += " --block " + args.block;
+    if (args.notSecure)
+        command += " --no-encryption";
+    std::system(command.c_str());
+}
+
 void
-doCommand(const Args &args, Clipboard &clipboard)
+doCommand(const Args &args, Clipboard &clipboard,
+        const std::string &argv_0)
 {
     switch(args.command)
     {
-        case Command::save:
-            clipboard.readPage();
+        case Command::store:
+            clipboard.loadPage();
             clipboard.addEntry(args.block);
             clipboard.writePage();
             break;
         case Command::list:
-            clipboard.readPage();
+            clipboard.loadPage();
             clipboard.listEntries(args.lines);
             break;
         case Command::restore:
-            clipboard.readPage();
+            clipboard.loadPage();
             clipboard.restore(args.index);
-            clipboard.writePage();
             break;
         case Command::watch:
-            break;
-        case Command::encrypt:
-            clipboard.readPage();
-            clipboard.encryptPage();
+            doWatch(args, argv_0);
             break;
     }
 }
@@ -111,18 +119,21 @@ main(int argc, char *argv[])
         cacheDir = fs::path(xdgVar);
 
     cacheDir = cacheDir / "wlclipmgr";
+
     if (!fs::exists(cacheDir))
         fs::create_directory(cacheDir);
 
     Clipboard clipboard{
         cacheDir / page,
         cacheDir / "tmpfile",
-        args.gpgUserName
+        args.gpgUserName,
+        args.notSecure
     };
 
+    const std::string argv_0 = argv[0];
     try
     {
-        doCommand(args, clipboard);
+        doCommand(args, clipboard, argv_0);
     }
     catch (const std::runtime_error &err)
     {

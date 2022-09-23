@@ -12,7 +12,6 @@ namespace fs = std::filesystem;
 
 #define MAX_SIZE_CLIPBOARD_ENTRY 0x1000000
 #define MIN_SIZE_COPY_VIA_FILE 0x100
-#define MIN_SIZE_SET_MIME 0x1000
 #define OUTPUT_LINE_TRUNCATE_AFTER 0x20
 
 class ClipboardEntry
@@ -24,6 +23,7 @@ class ClipboardEntry
     ClipboardEntry(const std::vector<char> &input, const size_t inputSize) :
         buffer{input}, size{inputSize}
     {
+        setMimeType();
     }
 
     friend std::ostream &operator<<(std::ostream &os,
@@ -34,6 +34,8 @@ class ClipboardEntry
 
     public:
     ClipboardEntry() = default;
+
+    bool isPrintable() const noexcept;
 
     bool operator==(const ClipboardEntry &other) const noexcept;
     const ClipboardEntry &setMimeType();
@@ -48,11 +50,16 @@ class Clipboard
     std::deque<ClipboardEntry> entries;
 
     const std::string gpgUserName;
+    const bool notSecure;
+
+    void encryptWritePage(const msgpack::sbuffer &sbuf) const noexcept;
+    void decryptLoadPage(const std::vector<char> &data) noexcept;
 
     public:
     Clipboard(const fs::path &pagePath, const fs::path &tmpFilePath,
-            const std::string &gpgUserName) :
-        pagePath{pagePath}, tmpFilePath{tmpFilePath}, gpgUserName{gpgUserName}
+            const std::string &gpgUserName, bool notSecure) :
+        pagePath{pagePath}, tmpFilePath{tmpFilePath}, gpgUserName{gpgUserName},
+        notSecure{notSecure}
     {
     }
 
@@ -62,12 +69,9 @@ class Clipboard
     void listEntries(const size_t num);
     void restore(const size_t index);
 
-    void encryptPage() const noexcept;
-    void decryptPage(const std::vector<char> &data, bool write = true) noexcept;
-
     void unpackEntries(const std::vector<char> &data);
     void writePage() const;
-    void readPage();
+    void loadPage();
 };
 
 

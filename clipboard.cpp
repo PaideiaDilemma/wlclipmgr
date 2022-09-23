@@ -7,12 +7,6 @@
 #include "procblock.hpp"
 #include "gpgmeinterface.hpp"
 
-#include <gpgme++/context.h>
-#include <gpgme++/data.h>
-#include <gpgme++/key.h>
-#include <gpgme++/keylistresult.h>
-#include <gpgme++/engineinfo.h>
-
 extern "C" {
 #include "thirdParty/xdgmime/src/xdgmime.h"
 }
@@ -44,8 +38,6 @@ Clipboard::addEntry(const std::string &block)
         return;
     }
     ClipboardEntry newEntry{buffer, buffSize};
-    if (buffSize > MIN_SIZE_SET_MIME)
-        newEntry.setMimeType();
 
     if (entries.empty() || newEntry != entries[0])
         entries.push_front(newEntry);
@@ -70,7 +62,12 @@ Clipboard::restore(const size_t index)
         return;
     }
     const ClipboardEntry entry = entries[index];
-    if (entry.size > MIN_SIZE_COPY_VIA_FILE)
+    // Erase and write before copying the ClipboardEntry
+    // makes sure the file is written, before wl-paste invokes wlclipmgr again
+    entries.erase(std::next(entries.begin(), index));
+    writePage();
+
+    if (entry.size > MIN_SIZE_COPY_VIA_FILE || !entry.isPrintable())
     {
         try
         {
@@ -92,6 +89,7 @@ Clipboard::restore(const size_t index)
     }
     else
     {
+        std::cout << "hello" << std::endl;
         const std::string prefix = "wl-copy \"";
         std::vector<char> command(prefix.begin(), prefix.end());
 
@@ -107,8 +105,6 @@ Clipboard::restore(const size_t index)
             std::cerr << '\t' << command.data() << std::endl;
         }
     }
-    // Delete restored element
-    entries.erase(std::next(entries.begin(), index));
 }
 
 void
@@ -116,7 +112,7 @@ Clipboard::unpackEntries(const std::vector<char> &data)
 {
     if (data.empty())
         return;
-    // TODO: Errorcheck
+
     msgpack::object_handle oh = msgpack::unpack(data.data(), data.size());
     msgpack::object obj = oh.get();
 
@@ -124,65 +120,65 @@ Clipboard::unpackEntries(const std::vector<char> &data)
 };
 
 void
-Clipboard::encryptPage() const noexcept
+Clipboard::encryptWritePage(const msgpack::sbuffer &sbuf) const noexcept
 {
-    if (entries.empty())
-    {
-        std::cout << "Nothing to encrypt!" << std::endl;
-        return;
-    }
-
-    // Pack clipboard entries
-    msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, entries);
-
     const GpgMEInterface gpgInterface{gpgUserName};
     std::vector<char> res = gpgInterface.encrypt(sbuf.data(), sbuf.size());
 
-    std::cout << res.size() << std::endl;
-    std::cout << pagePath.string()+".gpg" << std::endl;
-
     std::ofstream outFile{pagePath.string()+".gpg",
         std::ios::out | std::ios::binary};
+
     outFile.write(res.data(), res.size());
-    fs::remove(pagePath);
+    outFile.close();
+
+    if (fs::exists(pagePath))
+        fs::remove(pagePath);
 }
 
 void
-Clipboard::decryptPage(const std::vector<char> &data, bool write) noexcept
+Clipboard::decryptLoadPage(const std::vector<char> &data) noexcept
 {
     const GpgMEInterface gpgInterface{gpgUserName};
     std::vector<char> res = gpgInterface.decrypt(data.data(), data.size());
 
     unpackEntries(res);
-    if (write)
-    {
-        writePage();
-        fs::remove(pagePath.string() + ".gpg");
-    }
 }
 
 void
 Clipboard::writePage() const
 {
-    // Pack clipboard entries
+    if (entries.empty())
+    {
+        std::cout << "Nothing to write!" << std::endl;
+        return;
+    }
     msgpack::sbuffer sbuf;
     msgpack::pack(sbuf, entries);
 
-    std::ofstream pageFile{pagePath, std::ios::out | std::ios::binary};
-    pageFile.write(sbuf.data(), sbuf.size());
-    pageFile.close();
+    if (notSecure)
+    {
+        std::ofstream pageFile{pagePath, std::ios::out | std::ios::binary};
+        pageFile.write(sbuf.data(), sbuf.size());
+        pageFile.close();
+
+        if (fs::exists(pagePath.string() + ".gpg"))
+            fs::remove(pagePath.string() + ".gpg");
+
+        return;
+    }
+
+    encryptWritePage(sbuf);
 }
 
 void
-Clipboard::readPage()
+Clipboard::loadPage()
 {
-    fs::path pageFilePath = pagePath;
-    bool isEncrypted = false;
-    if (!fs::exists(pagePath) && fs::exists(pagePath.string() + ".gpg"))
+    fs::path pageFilePath{pagePath.string() + ".gpg"};
+    bool isEncrypted = true;
+    if (!fs::exists(pageFilePath) && fs::exists(pagePath))
     {
-        pageFilePath = fs::path{pagePath.string() + ".gpg"};
-        isEncrypted = true;
+        pageFilePath = fs::path{pagePath};
+        isEncrypted = false;
     }
 
     std::ifstream pageFile{pageFilePath, std::ios::in | std::ios::binary};
@@ -192,17 +188,18 @@ Clipboard::readPage()
         pageSize = fs::file_size(pageFilePath);
     } catch (const fs::filesystem_error &err)
     {
+        std::cerr << err.what() << std::endl;
         return;
     }
     if (pageSize == 0)
         return;
 
-    // Unpack clipboard entries
     std::vector<char> readBuff(pageSize);
     pageFile.read(readBuff.data(), pageSize);
+    pageFile.close();
 
     if (isEncrypted)
-        decryptPage(readBuff);
+        decryptLoadPage(readBuff);
     else
         unpackEntries(readBuff);
 }
@@ -216,6 +213,16 @@ ClipboardEntry::setMimeType()
 
     mime = std::string{res};
     return *this;
+}
+
+bool ClipboardEntry::isPrintable() const noexcept
+{
+    static const std::string textMime = "text";
+    if (mime.empty() || mime.size() < textMime.size())
+        return false;
+    if ("text" == mime.substr(0, textMime.size() - 1))
+        return true;
+    return false;
 }
 
 bool
