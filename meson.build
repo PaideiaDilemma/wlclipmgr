@@ -29,7 +29,6 @@ wlclipmgr = executable(
   dependencies: [
     lprocps,
     lgpgme,
-    lassuan,
     lgpg_error,
     dependency('magic_enum'),
     ],
