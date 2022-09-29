@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 #define MAX_SIZE_CLIPBOARD_ENTRY 0x1000000
 #define MIN_SIZE_COPY_VIA_FILE 0x100
-#define OUTPUT_LINE_TRUNCATE_AFTER 0x20
+#define OUTPUT_LINE_TRUNCATE_AFTER 0x36
 
 class ClipboardEntry
 {

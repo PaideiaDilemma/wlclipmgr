@@ -249,12 +249,19 @@ operator<<(std::ostream &os, const ClipboardEntry &obj)
 
     if (!obj.mime_.empty() && obj.mime_ != "text/plain")
     {
-        os << "mime: [" << obj.mime_ << "] size: " << obj.size_;
+        os << "mime: [" << obj.mime_ << "], size: " << obj.size_;
         return os;
     }
 
-    const size_t outSize = (obj.size_ < OUTPUT_LINE_TRUNCATE_AFTER) ?
-        obj.size_ : OUTPUT_LINE_TRUNCATE_AFTER;
+    size_t outSize = obj.size_;
+    std::string suffix;
+    if (outSize > OUTPUT_LINE_TRUNCATE_AFTER)
+    {
+        std::stringstream ss;
+        ss << "... (+" << outSize << ")";
+        suffix = ss.str();
+        outSize = OUTPUT_LINE_TRUNCATE_AFTER - suffix.size();
+    }
 
     std::vector<char> outBuffer(obj.buffer_.begin(),
         obj.buffer_.begin() + outSize);
@@ -270,10 +277,7 @@ operator<<(std::ostream &os, const ClipboardEntry &obj)
             os << "█";
     }
 
-    if (outSize == OUTPUT_LINE_TRUNCATE_AFTER)
-        os << "... (" << obj.size_ - outSize << " more chars)";
-
-    return os;
+    return os << suffix;
 }
 
 std::ofstream &
