@@ -55,9 +55,9 @@ parseBlockOpt(const std::string blockStr,
         size_t &newerThanMax)
 {
     std::vector<procInfo_m> res;
-    for (const auto &procStr : stringSplit(blockStr, ","))
+    for (const auto &procStr : stringSplit(blockStr, ','))
     {
-        const auto proc = stringSplit(procStr, ":");
+        const auto proc = stringSplit(procStr, ':');
         if (proc.size() == 1)
             res.push_back(procInfo_m{proc[0], 0});
         else if (proc.size() == 2)
@@ -117,16 +117,13 @@ procps_hertz_get(void)
 }
 
 std::vector<std::string>
-stringSplit(std::string s, std::string delim)
+stringSplit(const std::string &s, const char delim)
 {
-    size_t pos;
     std::vector<std::string> res;
-    while ((pos = s.find(delim)) != std::string::npos)
-    {
-        res.push_back(s.substr(0, pos));
-        s.erase(0, pos + delim.length());
-    }
-    res.push_back(s);
+    std::istringstream oss{s};
+    std::string token;
+    while (getline(oss, token, delim))
+        res.push_back(token);
     return res;
 }
 

@@ -31,7 +31,7 @@ bool clipboardProcBlock(const std::string &blockString);
 std::vector<procInfo_m> parseBlockOpt(const std::string blockStr,
         size_t &newerThanMax); // parse the block argument string
 unsigned long long getUpTime(void); // get /proc/uptime
-std::vector<std::string> stringSplit(std::string s, std::string delim);
+std::vector<std::string> stringSplit(const std::string &s, const char delim);
 long procps_hertz_get(void); // get system hertz (ripped from procps)
 
 

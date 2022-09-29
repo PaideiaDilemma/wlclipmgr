@@ -17,7 +17,7 @@ Clipboard::addEntry(const std::string &block)
     if (!block.empty() && clipboardProcBlock(block))
         return;
 
-    freopen(NULL, "rb", stdin);
+    std::freopen(NULL, "rb", stdin);
     std::vector<char> buffer;
     try
     {
@@ -175,8 +175,10 @@ Clipboard::loadPage()
 {
     fs::path pageFilePath{pagePath.string() + ".gpg"};
     bool isEncrypted = true;
-    if (!fs::exists(pageFilePath) && fs::exists(pagePath))
+    if (!fs::exists(pageFilePath))
     {
+        if (!fs::exists(pagePath))
+            return;
         pageFilePath = fs::path{pagePath};
         isEncrypted = false;
     }

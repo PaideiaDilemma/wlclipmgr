@@ -13,7 +13,6 @@ cc = meson.get_compiler('c')
 lprocps = cc.find_library('procps')
 cpp = meson.get_compiler('cpp')
 lgpgme = cpp.find_library('gpgmepp')
-lassuan = cpp.find_library('assuan')
 lgpg_error = cpp.find_library('gpg-error')
 
 source_files = [
@@ -33,7 +32,6 @@ wlclipmgr = executable(
     lassuan,
     lgpg_error,
     dependency('magic_enum'),
-    dependency('libassuan')
     ],
   native: true
   )
