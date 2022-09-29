@@ -30,6 +30,8 @@ Clipboard::addEntry(const std::string &block)
         return;
     }
     const size_t buffSize = buffer.size();
+    if (buffSize == 0)
+        return;
     if (buffSize > MAX_SIZE_CLIPBOARD_ENTRY)
     {
         std::cout << "ClipboardEntry size ";

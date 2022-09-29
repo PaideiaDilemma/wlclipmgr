@@ -3,4 +3,4 @@
 meson.build
 CmakeLists.txt
 *.md
-!.cache
+!*.idx
