@@ -13,8 +13,8 @@ GpgMEInterface::GpgMEInterface(const std::string &gpgKeyUserName) :
     if (info.isNull())
         throw std::runtime_error("No default gpg engine for OpenPGP!");
 
-    context = GpgME::Context::create(GpgME::Protocol::OpenPGP);
-    if (!context)
+    context_ = GpgME::Context::create(GpgME::Protocol::OpenPGP);
+    if (!context_)
         throw std::runtime_error("Failed to set up the gpg api!");
 
     getKey();
@@ -27,8 +27,8 @@ GpgMEInterface::encrypt(const char *buf,
     const GpgME::Data toEncrypt{buf, size};
     GpgME::Data res;
 
-    GpgME::EncryptionResult encryptRes = context->encrypt(
-            std::vector<GpgME::Key>{key},
+    GpgME::EncryptionResult encryptRes = context_->encrypt(
+            std::vector<GpgME::Key>{key_},
             toEncrypt,
             res,
             GpgME::Context::EncryptionFlags::None
@@ -57,7 +57,7 @@ GpgMEInterface::decrypt(const char *buf, const size_t size) const
         std::cout << std::endl;
     }
 
-    GpgME::DecryptionResult decryptRes = context->decrypt(toDecrypt, res);
+    GpgME::DecryptionResult decryptRes = context_->decrypt(toDecrypt, res);
     throwIfError(decryptRes.error(), "Decrypting data failed!");
     const size_t resSize = res.toString().size();
 
@@ -71,39 +71,39 @@ void
 GpgMEInterface::getKey()
 {
     GpgME::Error err;
-    context->setKeyListMode(GpgME::KeyListMode::WithSecret);
-    err = context->startKeyListing();
+    context_->setKeyListMode(GpgME::KeyListMode::WithSecret);
+    err = context_->startKeyListing();
     throwIfError(err, "Gpg key listing failed!");
 
-    GpgME::KeyListResult keyListRes = context->keyListResult();
+    GpgME::KeyListResult keyListRes = context_->keyListResult();
     if (keyListRes.isNull())
         throwIfError(keyListRes.error(),
-                "No gpg keys to incypt your clipboard!");
+                "No gpg keys to encypt your clipboard!");
 
     GpgME::Key currKey;
     do
     {
-        currKey = context->nextKey(err);
+        currKey = context_->nextKey(err);
         throwIfError(err, "Failed to get the next gpg key!");
         if (currKey.canEncrypt() && currKey.hasSecret())
         {
             if (gpgKeyUserName.empty())
             {
-                key = currKey;
+                key_ = currKey;
                 break;
             }
             else
             {
                 if (findUserNameInKey(currKey, gpgKeyUserName))
                 {
-                    key = currKey;
+                    key_ = currKey;
                     break;
                 }
             }
         }
     } while (!currKey.isNull());
 
-    if (key.isNull())
+    if (key_.isNull())
     {
         throw std::runtime_error("Did not find a valid key!");
     }

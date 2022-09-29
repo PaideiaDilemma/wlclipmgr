@@ -12,9 +12,9 @@ extern "C" {
 }
 
 void
-Clipboard::addEntry(const std::string &block)
+Clipboard::addEntry(const std::string &blockOption)
 {
-    if (!block.empty() && clipboardProcBlock(block))
+    if (!blockOption.empty() && isProcBlocking(blockOption))
         return;
 
     std::freopen(NULL, "rb", stdin);
@@ -41,16 +41,16 @@ Clipboard::addEntry(const std::string &block)
     }
     ClipboardEntry newEntry{buffer, buffSize};
 
-    if (entries.empty() || newEntry != entries[0])
-        entries.push_front(newEntry);
+    if (entries_.empty() || newEntry != entries_[0])
+        entries_.push_front(newEntry);
 }
 
 void
 Clipboard::listEntries(const size_t num)
 {
-    for (size_t i = 0; i < num && i < entries.size(); i++)
+    for (size_t i = 0; i < num && i < entries_.size(); i++)
     {
-        const ClipboardEntry &entry = entries[i];
+        const ClipboardEntry &entry = entries_[i];
         std::cout << i << " " << entry << std::endl;
     }
 }
@@ -58,22 +58,22 @@ Clipboard::listEntries(const size_t num)
 void
 Clipboard::restore(const size_t index)
 {
-    if (index == 0 || index >= entries.size())
+    if (index == 0 || index >= entries_.size())
     {
         std::cout << "Nothing to restore" << std::endl;
         return;
     }
-    const ClipboardEntry entry = entries[index];
+    const ClipboardEntry entry = entries_[index];
     // Erase and write before copying the ClipboardEntry
     // makes sure the file is written, before wl-paste invokes wlclipmgr again
-    entries.erase(std::next(entries.begin(), index));
+    entries_.erase(std::next(entries_.begin(), index));
     writePage();
 
-    if (entry.size > MIN_SIZE_COPY_VIA_FILE || !entry.isPrintable())
+    if (entry.size_ > MIN_SIZE_COPY_VIA_FILE || !entry.isPrintable())
     {
         try
         {
-            std::ofstream tmpFile{tmpFilePath,
+            std::ofstream tmpFile{tmpFilePath_,
                 std::ios::out | std::ios::binary};
             tmpFile << entry;
             tmpFile.close();
@@ -83,10 +83,10 @@ Clipboard::restore(const size_t index)
             std::cerr << "Failed to write entry to tmpfile." << std::endl;
             return;
         }
-        if (std::system(("wl-copy < " + tmpFilePath.string()).c_str()) != 0)
+        if (std::system(("wl-copy < " + tmpFilePath_.string()).c_str()) != 0)
         {
             std::cerr << "Copy file command failed:" << std::endl;
-            std::cerr << "\twl-copy < " << tmpFilePath.string() << std::endl;
+            std::cerr << "\twl-copy < " << tmpFilePath_.string() << std::endl;
         }
     }
     else
@@ -95,8 +95,8 @@ Clipboard::restore(const size_t index)
         const std::string prefix = "wl-copy \"";
         std::vector<char> command(prefix.begin(), prefix.end());
 
-        command.insert(command.end(), entry.buffer.begin(),
-                entry.buffer.end());
+        command.insert(command.end(), entry.buffer_.begin(),
+                entry.buffer_.end());
 
         command.push_back('\"');
         command.push_back('\0');
@@ -118,29 +118,29 @@ Clipboard::unpackEntries(const std::vector<char> &data)
     msgpack::object_handle oh = msgpack::unpack(data.data(), data.size());
     msgpack::object obj = oh.get();
 
-    obj.convert(entries);
+    obj.convert(entries_);
 };
 
 void
 Clipboard::encryptWritePage(const msgpack::sbuffer &sbuf) const noexcept
 {
-    const GpgMEInterface gpgInterface{gpgUserName};
+    const GpgMEInterface gpgInterface{gpgUserName_};
     std::vector<char> res = gpgInterface.encrypt(sbuf.data(), sbuf.size());
 
-    std::ofstream outFile{pagePath.string()+".gpg",
+    std::ofstream outFile{pagePath_.string()+".gpg",
         std::ios::out | std::ios::binary};
 
     outFile.write(res.data(), res.size());
     outFile.close();
 
-    if (fs::exists(pagePath))
-        fs::remove(pagePath);
+    if (fs::exists(pagePath_))
+        fs::remove(pagePath_);
 }
 
 void
 Clipboard::decryptLoadPage(const std::vector<char> &data) noexcept
 {
-    const GpgMEInterface gpgInterface{gpgUserName};
+    const GpgMEInterface gpgInterface{gpgUserName_};
     std::vector<char> res = gpgInterface.decrypt(data.data(), data.size());
 
     unpackEntries(res);
@@ -149,22 +149,22 @@ Clipboard::decryptLoadPage(const std::vector<char> &data) noexcept
 void
 Clipboard::writePage() const
 {
-    if (entries.empty())
+    if (entries_.empty())
     {
         std::cout << "Nothing to write!" << std::endl;
         return;
     }
     msgpack::sbuffer sbuf;
-    msgpack::pack(sbuf, entries);
+    msgpack::pack(sbuf, entries_);
 
-    if (notSecure)
+    if (notSecure_)
     {
-        std::ofstream pageFile{pagePath, std::ios::out | std::ios::binary};
+        std::ofstream pageFile{pagePath_, std::ios::out | std::ios::binary};
         pageFile.write(sbuf.data(), sbuf.size());
         pageFile.close();
 
-        if (fs::exists(pagePath.string() + ".gpg"))
-            fs::remove(pagePath.string() + ".gpg");
+        if (fs::exists(pagePath_.string() + ".gpg"))
+            fs::remove(pagePath_.string() + ".gpg");
 
         return;
     }
@@ -175,13 +175,13 @@ Clipboard::writePage() const
 void
 Clipboard::loadPage()
 {
-    fs::path pageFilePath{pagePath.string() + ".gpg"};
+    fs::path pageFilePath{pagePath_.string() + ".gpg"};
     bool isEncrypted = true;
     if (!fs::exists(pageFilePath))
     {
-        if (!fs::exists(pagePath))
+        if (!fs::exists(pagePath_))
             return;
-        pageFilePath = fs::path{pagePath};
+        pageFilePath = fs::path{pagePath_};
         isEncrypted = false;
     }
 
@@ -212,19 +212,19 @@ const ClipboardEntry &
 ClipboardEntry::setMimeType()
 {
     int res_prio;
-    const char *res = xdg_mime_get_mime_type_for_data(buffer.data(),
-            size, &res_prio);
+    const char *res = xdg_mime_get_mime_type_for_data(buffer_.data(),
+            size_, &res_prio);
 
-    mime = std::string{res};
+    mime_ = std::string{res};
     return *this;
 }
 
 bool ClipboardEntry::isPrintable() const noexcept
 {
     static const std::string textMime = "text";
-    if (mime.empty() || mime.size() < textMime.size())
+    if (mime_.empty() || mime_.size() < textMime.size())
         return false;
-    if ("text" == mime.substr(0, textMime.size() - 1))
+    if ("text" == mime_.substr(0, textMime.size() - 1))
         return true;
     return false;
 }
@@ -232,9 +232,9 @@ bool ClipboardEntry::isPrintable() const noexcept
 bool
 ClipboardEntry::operator==(const ClipboardEntry &other) const noexcept
 {
-    if (size != other.size)
+    if (size_ != other.size_)
         return false;
-    if (buffer != other.buffer)
+    if (buffer_ != other.buffer_)
         return false;
     return true;
 }
@@ -247,17 +247,17 @@ operator<<(std::ostream &os, const ClipboardEntry &obj)
         {'\n', "\\n"}, {'\r', "\\r"}, {'\r', "\\r"}
     };
 
-    if (!obj.mime.empty() && obj.mime != "text/plain")
+    if (!obj.mime_.empty() && obj.mime_ != "text/plain")
     {
-        os << "mime: [" << obj.mime << "] size: " << obj.size;
+        os << "mime: [" << obj.mime_ << "] size: " << obj.size_;
         return os;
     }
 
-    const size_t outSize = (obj.size < OUTPUT_LINE_TRUNCATE_AFTER) ?
-        obj.size : OUTPUT_LINE_TRUNCATE_AFTER;
+    const size_t outSize = (obj.size_ < OUTPUT_LINE_TRUNCATE_AFTER) ?
+        obj.size_ : OUTPUT_LINE_TRUNCATE_AFTER;
 
-    std::vector<char> outBuffer(obj.buffer.begin(),
-            obj.buffer.begin() + outSize);
+    std::vector<char> outBuffer(obj.buffer_.begin(),
+        obj.buffer_.begin() + outSize);
 
     for (const char c : outBuffer)
     {
@@ -271,7 +271,7 @@ operator<<(std::ostream &os, const ClipboardEntry &obj)
     }
 
     if (outSize == OUTPUT_LINE_TRUNCATE_AFTER)
-        os << "... (" << obj.size - outSize << " more chars)";
+        os << "... (" << obj.size_ - outSize << " more chars)";
 
     return os;
 }
@@ -279,6 +279,6 @@ operator<<(std::ostream &os, const ClipboardEntry &obj)
 std::ofstream &
 operator<<(std::ofstream &ofs, const ClipboardEntry &obj)
 {
-    ofs.write(obj.buffer.data(), obj.buffer.size());
+    ofs.write(obj.buffer_.data(), obj.buffer_.size());
     return ofs;
 }

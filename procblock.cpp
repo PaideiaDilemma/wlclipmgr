@@ -12,10 +12,10 @@
 #include "procblock.hpp"
 
 bool
-clipboardProcBlock(const std::string &blockString)
+isProcBlocking(const std::string &blockString)
 {
     size_t newerThanMax = 0;
-    const auto block = parseBlockOpt(blockString, newerThanMax);
+    const auto block = parseBlockOptionEntry(blockString, newerThanMax);
     std::vector<procInfo_m> kanidates;
     const auto uptimeSecs = getUpTime();
     const auto hertz = procps_hertz_get();
@@ -36,7 +36,7 @@ clipboardProcBlock(const std::string &blockString)
         for (size_t i = 0; i < 3; i++)
         {
             if(procInfo->cmdline[i] == NULL) break;
-            procKanidate.args.push_back(std::string(procInfo->cmdline[i]));
+            procKanidate.args_.push_back(std::string(procInfo->cmdline[i]));
         }
         kanidates.push_back(procKanidate);
     }
@@ -51,7 +51,7 @@ clipboardProcBlock(const std::string &blockString)
 }
 
 std::vector<procInfo_m>
-parseBlockOpt(const std::string blockStr,
+parseBlockOptionEntry(const std::string blockStr,
         size_t &newerThanMax)
 {
     std::vector<procInfo_m> res;

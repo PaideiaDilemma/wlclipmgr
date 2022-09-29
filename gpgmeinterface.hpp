@@ -23,8 +23,8 @@ class GpgMEInterface
     std::vector<char> decrypt(const char *buf, const size_t size) const;
 
     protected:
-    std::unique_ptr<GpgME::Context> context;
-    GpgME::Key key;
+    std::unique_ptr<GpgME::Context> context_;
+    GpgME::Key key_;
 };
 
 #endif // __WLCLIPMGR_GPGME_AGENT_HPP

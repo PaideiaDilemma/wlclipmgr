@@ -16,12 +16,12 @@ namespace fs = std::filesystem;
 
 class ClipboardEntry
 {
-    std::vector<char> buffer;
-    size_t size;
-    std::string mime;
+    std::vector<char> buffer_;
+    size_t size_;
+    std::string mime_;
 
     ClipboardEntry(const std::vector<char> &input, const size_t inputSize) :
-        buffer{input}, size{inputSize}
+        buffer_{input}, size_{inputSize}
     {
         setMimeType();
     }
@@ -40,17 +40,17 @@ class ClipboardEntry
     bool operator==(const ClipboardEntry &other) const noexcept;
     const ClipboardEntry &setMimeType();
 
-    MSGPACK_DEFINE(buffer, size, mime)
+    MSGPACK_DEFINE(buffer_, size_, mime_)
 };
 
 class Clipboard
 {
-    const fs::path pagePath;
-    const fs::path tmpFilePath;
-    std::deque<ClipboardEntry> entries;
+    const fs::path pagePath_;
+    const fs::path tmpFilePath_;
+    std::deque<ClipboardEntry> entries_;
 
-    const std::string gpgUserName;
-    const bool notSecure;
+    const std::string gpgUserName_;
+    const bool notSecure_;
 
     void encryptWritePage(const msgpack::sbuffer &sbuf) const noexcept;
     void decryptLoadPage(const std::vector<char> &data) noexcept;
@@ -58,14 +58,14 @@ class Clipboard
     public:
     Clipboard(const fs::path &pagePath, const fs::path &tmpFilePath,
             const std::string &gpgUserName, bool notSecure) :
-        pagePath{pagePath}, tmpFilePath{tmpFilePath}, gpgUserName{gpgUserName},
-        notSecure{notSecure}
+        pagePath_{pagePath}, tmpFilePath_{tmpFilePath}, gpgUserName_{gpgUserName},
+        notSecure_{notSecure}
     {
     }
 
     ~Clipboard() = default;
 
-    void addEntry(const std::string &block);
+    void addEntry(const std::string &blockOption);
     void listEntries(const size_t num);
     void restore(const size_t index);
 
