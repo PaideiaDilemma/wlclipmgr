@@ -121,8 +121,7 @@ stringSplit(const std::string &s, const char delim)
 {
     std::vector<std::string> res;
     std::istringstream oss{s};
-    std::string token;
-    while (getline(oss, token, delim))
+    for (std::string token; std::getline(oss, token, delim); )
         res.push_back(token);
     return res;
 }
